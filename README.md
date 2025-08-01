@@ -7,8 +7,9 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%7C%20GPL%20v2-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#installation)
-[![CUDA](https://img.shields.io/badge/CUDA-11.0%2B-green.svg)](#cuda-support)
+[![CUDA](https://img.shields.io/badge/CUDA-8.0--12.9%2B-green.svg)](#cuda-support)
 [![Visual Studio](https://img.shields.io/badge/Visual%20Studio-2013--2022-purple.svg)](#windows--visual-studio)
+[![CMake](https://img.shields.io/badge/CMake-3.5--4.0%2B-blue.svg)](#requirements)
 
 </div>
 
@@ -35,11 +36,11 @@ This is a modernized version of the original [libfreenect2](https://github.com/O
 | Feature | Benefit |
 |---------|---------|
 | 🛠️ **Visual Studio 2019/2022 Support** | Enhanced CMake configuration for modern toolchains |
-| 🚀 **CUDA 12.9+ Compatibility** | Native CMake CUDA support with automatic samples integration |
-| 🏗️ **Modernized CUDA Build System** | Replaced deprecated FindCUDA with enable_language(CUDA) |
+| 🚀 **Universal CUDA Support** | Works with CUDA 8.0-12.9+ using smart detection (legacy/modern) |
+| 🏗️ **Dual Build System** | Modern CMake CUDA (3.18+) with automatic fallback to FindCUDA |
 | ⚡ **Enhanced GPU Architecture Support** | Maxwell to Ada Lovelace (compute 50-90) for 25-35+ FPS |
 | 📦 **Improved Build System** | Better dependency detection and clearer error messages |
-| 🔮 **Future-Proof CUDA** | Modern CMake 3.18+ with advanced CUDA optimization flags |
+| 🔮 **Future-Proof Design** | Supports CMake 3.5-4.0+ with automatic feature detection |
 
 Note: libfreenect2 does not do anything for either Kinect for Windows v1 or Kinect for Xbox 360 sensors. Use libfreenect1 for those sensors.
 
@@ -84,14 +85,23 @@ It has been reported to work for up to 5 devices on a high-end PC using multiple
 | **Linux** | ⚠️ Community | Ubuntu 16.04+, Debian Stretch+, kernel 3.16+ |
 | **macOS** | ⚠️ Community | 10.14+ |
 
-### 🎮 Pipeline Requirements
+### 🎮 Pipeline Requirements & Compatibility
 
 <details>
-<summary><strong>Click to expand pipeline details</strong></summary>
+<summary><strong>Click to expand detailed compatibility matrix</strong></summary>
 
+#### CUDA Version Compatibility
+| CUDA Version | Visual Studio Support | CMake Approach | GPU Architectures |
+|--------------|----------------------|----------------|-------------------|
+| **12.5-12.9+** | VS2013-2022 (all versions) | Modern (CMake 3.18+) | Kepler to Ada (30-90) |
+| **11.0-12.4** | VS2015-2022 (v17.9 max) | Modern/Legacy | Maxwell to Ampere (50-86) |
+| **10.0-10.2** | VS2013-2019 | Legacy (FindCUDA) | Maxwell to Turing (50-75) |
+| **8.0-9.2** | VS2013-2017 | Legacy (FindCUDA) | Kepler to Pascal (30-61) |
+
+#### Pipeline Performance
 | Pipeline | Requirements | Performance | Platform Support |
 |----------|-------------|-------------|------------------|
-| **🚀 CUDA** | CUDA 11.0+, NVIDIA GPU | Highest (20-35+ FPS) | Windows/Linux/macOS |
+| **🚀 CUDA** | CUDA 8.0+, NVIDIA GPU | Highest (20-35+ FPS) | Windows/Linux/macOS |
 | **🎨 OpenGL** | OpenGL 3.1+ | Good (15-25 FPS) | All platforms |
 | **⚡ OpenCL** | OpenCL 1.1+ | Good (15-25 FPS) | All platforms |
 | **🖥️ CPU** | Any CPU | Basic (5-15 FPS) | All platforms |
@@ -179,10 +189,12 @@ All dependencies are included in the `depends/` directory, but you can also inst
 - Extract as `depends/glfw` (rename `glfw-3.x.x.bin.WIN64` to `glfw`)
 
 **Install CUDA (optional, NVIDIA only)**
-- Download CUDA Toolkit 12.9+ from https://developer.nvidia.com/cuda-downloads
-- **Important**: CUDA 12.9+ required for Visual Studio 2022 v17.10+ compatibility
+- Download CUDA Toolkit from https://developer.nvidia.com/cuda-downloads
+  - **For VS2022 v17.10+**: CUDA 12.5+ required (12.9+ recommended)
+  - **For VS2019/older**: CUDA 11.0+ supported
+  - **Legacy support**: CUDA 8.0-10.2 also works with older VS versions
 - **Note**: CUDA samples are automatically downloaded during build - no manual setup required
-- **Performance**: Modern CUDA provides 25-35+ FPS with advanced GPU architecture support
+- **Performance**: 25-35+ FPS with modern GPUs (CUDA 11.0+)
 
 **Install OpenCL (optional)**
 - Intel GPU: Download "Intel® SDK for OpenCL™ Applications 2016" from https://software.intel.com/en-us/intel-opencl
@@ -200,9 +212,18 @@ cd libfreenect2-modern
 ```
 
 **Configure and build**
+
+For modern systems (CMake 3.18+, CUDA 11.0+):
 ```bash
 mkdir build && cd build
 cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config RelWithDebInfo --target install
+```
+
+For legacy systems (older CMake/CUDA):
+```bash
+mkdir build && cd build
+cmake .. -G "Visual Studio 16 2019" -A x64 -DUSE_MODERN_CUDA=OFF
 cmake --build . --config RelWithDebInfo --target install
 ```
 
@@ -214,13 +235,22 @@ cmake --build . --config RelWithDebInfo --target install
 - Visual Studio 2013: `-G "Visual Studio 12 2013 Win64"`
 
 **Key improvements in this modernized version:**
-- ✅ **Modern CUDA Architecture**: Native CMake CUDA language support (CMake 3.18+)
-- ✅ **CUDA 12.9+ Compatibility**: Fully supports latest Visual Studio 2022 versions
-- ✅ **Advanced GPU Support**: Maxwell to Ada Lovelace architectures (compute 50-90)
-- ✅ **Performance Optimization**: Modern CUDA flags for 25-35+ FPS performance
-- ✅ **Automatic CUDA samples**: No need to manually set `NVCUDASAMPLES_ROOT`
-- ✅ **Enhanced dependency detection**: Better fallbacks when pkg-config is missing
-- ✅ **Future-proof build system**: Eliminated all deprecated FindCUDA warnings
+- ✅ **Universal CUDA Support**: Works with CUDA 8.0 through 12.9+ 
+- ✅ **Smart Build Detection**: Automatically uses modern or legacy approach based on your system
+- ✅ **Backward Compatibility**: Supports CMake 3.5+ and Visual Studio 2013-2022
+- ✅ **Advanced GPU Support**: From Kepler to Ada Lovelace (compute 30-90)
+- ✅ **Performance Optimization**: 25-35+ FPS with modern GPUs
+- ✅ **Automatic CUDA samples**: No manual `NVCUDASAMPLES_ROOT` configuration
+- ✅ **Future-proof design**: Ready for CMake 4.0+ and CUDA 13.0+
+
+**Build configuration options:**
+```bash
+-DENABLE_CUDA=ON          # Enable CUDA support (default: ON)
+-DUSE_MODERN_CUDA=ON/OFF  # Force modern/legacy CUDA approach (default: AUTO)
+-DENABLE_OPENCL=ON        # Enable OpenCL support (default: ON)
+-DENABLE_OPENGL=ON        # Enable OpenGL support (default: ON)
+-DBUILD_EXAMPLES=ON       # Build example programs (default: ON)
+```
 
 #### Step 4: Test Your Installation
 
@@ -422,10 +452,11 @@ cmake -Dfreenect2_DIR=$HOME/freenect2/lib/cmake/freenect2 [other options]
 ### Common Issues
 
 **"Could not find CUDA" or CUDA compilation errors**
-- ✅ **This version uses modern CMake CUDA support** - no deprecated FindCUDA warnings
-- ✅ **CUDA 12.9+ required** for Visual Studio 2022 v17.10+ compatibility  
-- ✅ **Automatic CUDA samples handling** - no manual environment variables needed
-- For older CUDA versions: upgrade to CUDA 12.9+ for best compatibility
+- ✅ **Smart detection** - Automatically uses modern or legacy CUDA approach
+- ✅ **VS2022 compatibility** - CUDA 12.5+ required for v17.10+, older CUDA works with VS2019
+- ✅ **Legacy fallback** - Use `-DUSE_MODERN_CUDA=OFF` for older systems
+- ✅ **Automatic samples** - No manual `NVCUDASAMPLES_ROOT` needed
+- For best results: Use CUDA 12.9+ with VS2022 or CUDA 11.0+ with VS2019
 
 **"libusb not found" or "GLFW not found"**
 - ✅ **Enhanced dependency detection** in this version provides better error messages

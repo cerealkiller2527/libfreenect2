@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.18 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 
 SET(PROJECT_VER_MAJOR 0)
 SET(PROJECT_VER_MINOR 2)
@@ -22,15 +22,26 @@ IF(NOT DEFINED CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Choose: RelWithDebInfo Release Debug MinSizeRel None")
 ENDIF()
 
-# Enable CUDA language conditionally with VS2022 compatibility fix
-IF(ENABLE_CUDA)
-  # Fix for CUDA 12.4 + VS2022 compatibility issue
+# Detect if we should use modern or legacy CUDA approach
+SET(USE_MODERN_CUDA_DEFAULT ON)
+IF(CMAKE_VERSION VERSION_LESS 3.18)
+  SET(USE_MODERN_CUDA_DEFAULT OFF)
+ENDIF()
+OPTION(USE_MODERN_CUDA "Use modern CMake CUDA language support (requires CMake 3.18+)" ${USE_MODERN_CUDA_DEFAULT})
+
+# Configure project with appropriate CUDA support
+IF(ENABLE_CUDA AND USE_MODERN_CUDA AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+  # Modern approach: Native CUDA language support
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --allow-unsupported-compiler")
   set(ENV{CUDAFLAGS} "$ENV{CUDAFLAGS} --allow-unsupported-compiler")
   
-  MESSAGE(STATUS "CUDA enabled with VS2022 compatibility fix")
+  MESSAGE(STATUS "Using modern CUDA language support (CMake 3.18+)")
   PROJECT(libfreenect2 LANGUAGES C CXX CUDA)
 ELSE()
+  # Legacy approach: Will use FindCUDA if CUDA is enabled
+  IF(ENABLE_CUDA)
+    MESSAGE(STATUS "Using legacy FindCUDA approach (for compatibility)")
+  ENDIF()
   PROJECT(libfreenect2 LANGUAGES C CXX)
 ENDIF()
 
@@ -349,39 +360,130 @@ ENDIF(ENABLE_OPENCL)
 
 SET(HAVE_CUDA disabled)
 IF(ENABLE_CUDA)
-  # Modern CUDA approach using CUDAToolkit
-  find_package(CUDAToolkit REQUIRED)
-  
   SET(HAVE_CUDA no)
-  IF(CMAKE_CUDA_COMPILER AND CUDAToolkit_FOUND)
-    SET(LIBFREENECT2_WITH_CUDA_SUPPORT 1)
-    SET(HAVE_CUDA yes)
+  
+  # Try modern approach first if available
+  IF(USE_MODERN_CUDA AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+    # Modern CUDA approach using CUDAToolkit
+    find_package(CUDAToolkit QUIET)
     
-    # Set modern CUDA architectures for better GPU support
-    set(CMAKE_CUDA_ARCHITECTURES "50;52;60;61;70;75;80;86;89;90")
-    
-    # Include directories for CUDA samples  
-    STRING(REPLACE "\\" "/" NVCUDASAMPLES_ROOT "$ENV{NVCUDASAMPLES_ROOT}")
-    STRING(REPLACE "\\" "/" NVCUDASAMPLES8_0_ROOT "$ENV{NVCUDASAMPLES8_0_ROOT}")
-    
-    INCLUDE_DIRECTORIES(
-      "${CUDAToolkit_INCLUDE_DIRS}"
-      "${CUDAToolkit_TARGET_DIR}/samples/common/inc"
-      "${NVCUDASAMPLES_ROOT}/common/inc"  
-      "${NVCUDASAMPLES8_0_ROOT}/common/inc"
-      "${DEPENDS_DIR}/cuda-samples/Common"
-    )
+    IF(CMAKE_CUDA_COMPILER AND CUDAToolkit_FOUND)
+      SET(LIBFREENECT2_WITH_CUDA_SUPPORT 1)
+      SET(HAVE_CUDA yes)
+      SET(CUDA_VERSION ${CUDAToolkit_VERSION})
+      
+      # Set modern CUDA architectures for better GPU support
+      set(CMAKE_CUDA_ARCHITECTURES "50;52;60;61;70;75;80;86;89;90")
+      
+      # Include directories for CUDA samples  
+      STRING(REPLACE "\\" "/" NVCUDASAMPLES_ROOT "$ENV{NVCUDASAMPLES_ROOT}")
+      STRING(REPLACE "\\" "/" NVCUDASAMPLES8_0_ROOT "$ENV{NVCUDASAMPLES8_0_ROOT}")
+      
+      INCLUDE_DIRECTORIES(
+        "${CUDAToolkit_INCLUDE_DIRS}"
+        "${CUDAToolkit_TARGET_DIR}/samples/common/inc"
+        "${NVCUDASAMPLES_ROOT}/common/inc"  
+        "${NVCUDASAMPLES8_0_ROOT}/common/inc"
+        "${DEPENDS_DIR}/cuda-samples/Common"
+      )
 
-    # Add CUDA source files directly (modern approach)
-    LIST(APPEND SOURCES
-      src/cuda_depth_packet_processor.cu
-      src/cuda_kde_depth_packet_processor.cu
-    )
+      # Add CUDA source files directly (modern approach)
+      LIST(APPEND SOURCES
+        src/cuda_depth_packet_processor.cu
+        src/cuda_kde_depth_packet_processor.cu
+      )
 
-    # Link modern CUDA libraries
-    LIST(APPEND LIBRARIES
-      CUDA::cudart
-    )
+      # Link modern CUDA libraries
+      LIST(APPEND LIBRARIES
+        CUDA::cudart
+      )
+      
+      MESSAGE(STATUS "Using modern CUDA ${CUDA_VERSION} with native CMake support")
+    ENDIF()
+  ENDIF()
+  
+  # Fallback to legacy FindCUDA if modern approach didn't work
+  IF(NOT HAVE_CUDA STREQUAL yes)
+    # Legacy CUDA approach using FindCUDA
+    FIND_PACKAGE(CUDA)
+    
+    IF(CUDA_FOUND)
+      # Check VS2022 compatibility for older CUDA versions
+      IF(MSVC AND CUDA_VERSION VERSION_LESS 12.5)
+        # Get MSVC version
+        STRING(REGEX REPLACE "^.*([0-9][0-9])\\.[0-9][0-9].*$" "\\1" MSVC_MAJOR "${CMAKE_CXX_COMPILER_VERSION}")
+        IF(MSVC_MAJOR GREATER_EQUAL 19.40)
+          MESSAGE(WARNING "CUDA ${CUDA_VERSION} may not be compatible with VS2022 v17.10+. Consider upgrading to CUDA 12.5+")
+        ENDIF()
+      ENDIF()
+      
+      SET(LIBFREENECT2_WITH_CUDA_SUPPORT 1)
+      SET(HAVE_CUDA yes)
+      
+      STRING(REPLACE "\\" "/" NVCUDASAMPLES_ROOT "$ENV{NVCUDASAMPLES_ROOT}")
+      STRING(REPLACE "\\" "/" NVCUDASAMPLES8_0_ROOT "$ENV{NVCUDASAMPLES8_0_ROOT}")
+      
+      CUDA_INCLUDE_DIRECTORIES(
+        "${MY_DIR}/include/"
+        "${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc"
+        "${NVCUDASAMPLES_ROOT}/common/inc"
+        "${NVCUDASAMPLES8_0_ROOT}/common/inc"
+        "${DEPENDS_DIR}/cuda-samples/Common"
+      )
+      
+      # Legacy CUDA flags
+      SET(CUDA_FLAGS -use_fast_math)
+      IF(NOT MSVC)
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -Xcompiler -fPIC")
+      ENDIF()
+      
+      # Add --allow-unsupported-compiler for newer VS versions
+      IF(MSVC)
+        SET(CUDA_FLAGS "${CUDA_FLAGS} --allow-unsupported-compiler")
+      ENDIF()
+      
+      # Add GPU architectures based on CUDA version
+      IF(CUDA_VERSION VERSION_GREATER_EQUAL 11.0)
+        # Modern architectures for CUDA 11+
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_50,code=sm_50")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_52,code=sm_52")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_60,code=sm_60")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_61,code=sm_61")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_70,code=sm_70")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_75,code=sm_75")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_80,code=sm_80")
+        IF(CUDA_VERSION VERSION_GREATER_EQUAL 11.1)
+          SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_86,code=sm_86")
+        ENDIF()
+      ELSE()
+        # Legacy architectures for older CUDA
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_30,code=sm_30")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_35,code=sm_35")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_50,code=sm_50")
+        SET(CUDA_FLAGS "${CUDA_FLAGS} -gencode arch=compute_52,code=sm_52")
+      ENDIF()
+      
+      SET(OLD_CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+      STRING(REGEX REPLACE "-std=c\\+\\+.." "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+      CUDA_COMPILE(CUDA_OBJECTS
+        src/cuda_depth_packet_processor.cu
+        src/cuda_kde_depth_packet_processor.cu
+        OPTIONS ${CUDA_FLAGS}
+      )
+      SET(CMAKE_CXX_FLAGS "${OLD_CMAKE_CXX_FLAGS}")
+
+      INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS})
+
+      LIST(APPEND SOURCES
+        ${CUDA_OBJECTS}
+      )
+
+      LIST(APPEND LIBRARIES
+        ${CUDA_LIBRARIES}
+      )
+      
+      MESSAGE(STATUS "Using legacy CUDA ${CUDA_VERSION} with FindCUDA")
+    ENDIF()
   ENDIF()
 ENDIF(ENABLE_CUDA)
 
