@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.18 FATAL_ERROR)
 
 SET(PROJECT_VER_MAJOR 0)
 SET(PROJECT_VER_MINOR 2)
@@ -22,7 +22,17 @@ IF(NOT DEFINED CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Choose: RelWithDebInfo Release Debug MinSizeRel None")
 ENDIF()
 
-PROJECT(libfreenect2)
+# Enable CUDA language conditionally with VS2022 compatibility fix
+IF(ENABLE_CUDA)
+  # Fix for CUDA 12.4 + VS2022 compatibility issue
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --allow-unsupported-compiler")
+  set(ENV{CUDAFLAGS} "$ENV{CUDAFLAGS} --allow-unsupported-compiler")
+  
+  MESSAGE(STATUS "CUDA enabled with VS2022 compatibility fix")
+  PROJECT(libfreenect2 LANGUAGES C CXX CUDA)
+ELSE()
+  PROJECT(libfreenect2 LANGUAGES C CXX)
+ENDIF()
 
 IF(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
@@ -339,48 +349,38 @@ ENDIF(ENABLE_OPENCL)
 
 SET(HAVE_CUDA disabled)
 IF(ENABLE_CUDA)
-  FIND_PACKAGE(CUDA)
+  # Modern CUDA approach using CUDAToolkit
+  find_package(CUDAToolkit REQUIRED)
+  
   SET(HAVE_CUDA no)
-  IF(CUDA_FOUND AND MSVC14 AND CUDA_VERSION VERSION_LESS 8.0)
-    SET(HAVE_CUDA "no (VS2015 not supported)")
-  ELSEIF(CUDA_FOUND)
+  IF(CMAKE_CUDA_COMPILER AND CUDAToolkit_FOUND)
     SET(LIBFREENECT2_WITH_CUDA_SUPPORT 1)
     SET(HAVE_CUDA yes)
-
+    
+    # Set modern CUDA architectures for better GPU support
+    set(CMAKE_CUDA_ARCHITECTURES "50;52;60;61;70;75;80;86;89;90")
+    
+    # Include directories for CUDA samples  
     STRING(REPLACE "\\" "/" NVCUDASAMPLES_ROOT "$ENV{NVCUDASAMPLES_ROOT}")
     STRING(REPLACE "\\" "/" NVCUDASAMPLES8_0_ROOT "$ENV{NVCUDASAMPLES8_0_ROOT}")
-    CUDA_INCLUDE_DIRECTORIES(
-      "${MY_DIR}/include/"
-      "${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc"
-      "${NVCUDASAMPLES_ROOT}/common/inc"
+    
+    INCLUDE_DIRECTORIES(
+      "${CUDAToolkit_INCLUDE_DIRS}"
+      "${CUDAToolkit_TARGET_DIR}/samples/common/inc"
+      "${NVCUDASAMPLES_ROOT}/common/inc"  
       "${NVCUDASAMPLES8_0_ROOT}/common/inc"
       "${DEPENDS_DIR}/cuda-samples/Common"
     )
-    SET(CUDA_FLAGS -use_fast_math)
-    IF(NOT MSVC)
-      SET(CUDA_FLAGS "${CUDA_FLAGS} -Xcompiler -fPIC")
-    ENDIF()
-    IF(HAVE_CXX11 STREQUAL yes AND CUDA_VERSION VERSION_GREATER 7.0)
-      SET(CUDA_FLAGS "${CUDA_FLAGS} -std=c++11")
-    ENDIF()
 
-    SET(OLD_CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    STRING(REGEX REPLACE "-std=c\\+\\+.." "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    CUDA_COMPILE(CUDA_OBJECTS
+    # Add CUDA source files directly (modern approach)
+    LIST(APPEND SOURCES
       src/cuda_depth_packet_processor.cu
       src/cuda_kde_depth_packet_processor.cu
-      OPTIONS ${CUDA_FLAGS}
-    )
-    SET(CMAKE_CXX_FLAGS "${OLD_CMAKE_CXX_FLAGS}")
-
-    INCLUDE_DIRECTORIES(${CUDA_INCLUDE_DIRS})
-
-    LIST(APPEND SOURCES
-      ${CUDA_OBJECTS}
     )
 
+    # Link modern CUDA libraries
     LIST(APPEND LIBRARIES
-      ${CUDA_LIBRARIES}
+      CUDA::cudart
     )
   ENDIF()
 ENDIF(ENABLE_CUDA)
@@ -437,6 +437,32 @@ ENDIF()
 STRING(REPLACE ";" "\n " LIBRARIES_STRING "${LIBRARIES}")
 MESSAGE(STATUS "Linking with these libraries: \n ${LIBRARIES_STRING}")
 TARGET_LINK_LIBRARIES(freenect2 ${LIBRARIES})
+
+# Configure modern CUDA properties
+IF(ENABLE_CUDA AND CMAKE_CUDA_COMPILER AND CUDAToolkit_FOUND)
+  # Modern CUDA compilation settings
+  set_property(TARGET freenect2 PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+  set_property(TARGET freenect2 PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  
+  # Set CUDA standard for compatibility
+  set_property(TARGET freenect2 PROPERTY CUDA_STANDARD 14)
+  set_property(TARGET freenect2 PROPERTY CUDA_STANDARD_REQUIRED ON)
+  
+  # Modern CUDA compile options with VS2022 compatibility
+  target_compile_options(freenect2 PRIVATE 
+    $<$<COMPILE_LANGUAGE:CUDA>:
+      --use_fast_math
+      --extended-lambda
+      --expt-relaxed-constexpr
+      --allow-unsupported-compiler  # VS2022 compatibility
+    >
+  )
+  
+  # Ensure CUDA architectures are set
+  set_property(TARGET freenect2 PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
+  
+  MESSAGE(STATUS "CUDA modernization complete - using native CMake CUDA support")
+ENDIF()
 
 CONFIGURE_FILE(freenect2.cmake.in "${PROJECT_BINARY_DIR}/freenect2Config.cmake" @ONLY)
 CONFIGURE_FILE(freenect2Version.cmake.in "${PROJECT_BINARY_DIR}/freenect2ConfigVersion.cmake" @ONLY)
