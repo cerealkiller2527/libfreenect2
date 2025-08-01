@@ -13,6 +13,16 @@
 
 </div>
 
+## 🎯 Part of the GPU-Accelerated Kinect v2 Stack
+
+This is the **foundation layer** of the complete Kinect v2 development stack:
+
+| Layer | Project | Description |
+|-------|---------|-------------|
+| **📦 Foundation** | **libfreenect2-modern** (this project) | Core C++ driver with GPU pipelines |
+| **🐍 Python Bindings** | [pylibfreenect2-py310](https://github.com/cerealkiller2527/pylibfreenect2-py310) | Python 3.10+ interface with automatic pipeline selection |
+| **🔧 High-Level API** | [kinect-toolbox-py310](https://github.com/cerealkiller2527/kinect-toolbox-py310) | Easy-to-use Python wrapper with utilities |
+
 ## Table of Contents
 
 * [Description](README.md#description)
@@ -126,7 +136,7 @@ When you report USB issues, please attach relevant debug log from running the pr
 **[Madhav Lodha](https://madhavlodha.com)** - *Build system modernization and enhanced compatibility*  
 📧 Contact: [madhavlodha.com](https://madhavlodha.com) | 🐙 GitHub: [@cerealkiller2527](https://github.com/cerealkiller2527)
 
-This modernized version focuses on build system improvements and modern toolchain compatibility.
+This modernized version focuses on build system improvements and modern toolchain compatibility. Check out my portfolio at [madhavlodha.com](https://madhavlodha.com) for more projects!
 
 ### 🏛️ Original libfreenect2 Team
 * **Joshua Blake** <joshblake@gmail.com>
@@ -505,3 +515,25 @@ This is a community-maintained modernized version that:
 - ✅ Contributes improvements back to the community when possible
 
 **Original project**: https://github.com/OpenKinect/libfreenect2
+
+## 🔗 Related Projects
+
+### This Stack
+- **🐍 [pylibfreenect2-py310](https://github.com/cerealkiller2527/pylibfreenect2-py310)** - Python 3.10+ bindings for this library
+- **🔧 [kinect-toolbox-py310](https://github.com/cerealkiller2527/kinect-toolbox-py310)** - High-level Python API built on top
+
+### Original Projects
+- **[OpenKinect/libfreenect2](https://github.com/OpenKinect/libfreenect2)** - Original core C++ library
+- **[r9y9/pylibfreenect2](https://github.com/r9y9/pylibfreenect2)** - Original Python bindings (2.7-3.5)
+
+### 📦 Next Steps: Python Integration
+
+Once libfreenect2 is successfully installed and tested, you can install the Python stack:
+
+1. **Install Python bindings**: [pylibfreenect2-py310](https://github.com/cerealkiller2527/pylibfreenect2-py310)
+2. **Install high-level API**: [kinect-toolbox-py310](https://github.com/cerealkiller2527/kinect-toolbox-py310)
+
+Or install everything at once:
+```bash
+pip install git+https://github.com/cerealkiller2527/kinect-toolbox-py310.git
+```
