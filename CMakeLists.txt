@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 
 SET(PROJECT_VER_MAJOR 0)
 SET(PROJECT_VER_MINOR 2)
@@ -354,6 +354,7 @@ IF(ENABLE_CUDA)
       "${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc"
       "${NVCUDASAMPLES_ROOT}/common/inc"
       "${NVCUDASAMPLES8_0_ROOT}/common/inc"
+      "${DEPENDS_DIR}/cuda-samples/Common"
     )
     SET(CUDA_FLAGS -use_fast_math)
     IF(NOT MSVC)
